@@ -6,6 +6,7 @@ import System.Directory
 import Control.Applicative
 import Control.Concurrent
 import Control.Monad
+import Control.Exception
 import Data.List (isInfixOf)
 
 main :: IO ()
@@ -32,9 +33,11 @@ main = do
             then putStrLn $ "Ignoring event: " ++ show path
             else do
                 tryTakeMVar currentProc >>= \case
-                    -- waitForProcess cleans up the handle
-                    Just process -> interruptProcessGroupOf process >> waitForProcess process >> return ()
-                    _ -> return () 
+                    Just process -> do
+                        interruptProcessGroupOf process `catch` (\e -> print (e :: IOException))
+                        waitForProcess process -- cleans up the handle
+                        return ()
+                    _ -> return ()
                 putMVar currentProc =<< start cmd args
     forever $ threadDelay 1000000
 
