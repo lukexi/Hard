@@ -14,7 +14,10 @@ main = do
     allArgs <- getArgs
 
     when (null allArgs) $ 
-        error "Usage: hard <command>. Watches the current directory/subdirectories and re-runs the <command>. Ignores files in your .gitignore"
+        error $ unlines 
+            [ "Usage: hard <command>." 
+            , "Watches the current directory/subdirectories and re-runs the <command>."
+            , "Ignores files in your .gitignore" ]
 
     let (cmd:args) = allArgs
 
@@ -34,14 +37,16 @@ main = do
             else do
                 tryTakeMVar currentProc >>= \case
                     Just process -> do
-                        interruptProcessGroupOf process `catch` (\e -> print (e :: IOException))
+                        interruptProcessGroupOf process 
+                            `catch` (\e -> print (e :: IOException))
                         waitForProcess process -- cleans up the handle
                         return ()
                     _ -> return ()
                 putMVar currentProc =<< start cmd args
     forever $ threadDelay 1000000
 
--- We start the process in a group such that interruptProcessGroupOf will also terminate any child processes
+-- We start the process in a group such that 
+-- interruptProcessGroupOf will also terminate any child processes
 start :: FilePath -> [String] -> IO ProcessHandle
 start cmd args = do
     (_,_,_,p) <- createProcess ((proc cmd args) {delegate_ctlc=False, create_group=True})
