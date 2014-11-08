@@ -18,7 +18,7 @@ main = do
 
     let (cmd:args) = allArgs
 
-    ignorables <- lines <$> readFile ".gitignore"
+    ignorables <- (".git":) . lines <$> readFile ".gitignore"
 
     dir <- getCurrentDirectory
 
