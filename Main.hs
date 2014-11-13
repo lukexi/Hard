@@ -31,19 +31,28 @@ main = do
     currentProc <- newMVar =<< start cmd args
     eventStreamCreate [dir] 0.1 processImmediate ignoreSelfEvents fileLevel $ \event -> do
         let path = eventPath event
-        let ignorable = or (map (`isInfixOf` path) ignorables)
+            ignorable = or (map (`isInfixOf` path) ignorables)
         if ignorable 
-            then putStrLn $ "Ignoring event: " ++ show path
+            then return () -- putStrLn $ "Ignoring event: " ++ show path
             else do
-                tryTakeMVar currentProc >>= \case
-                    Just process -> do
+                whenJustM_ (tryTakeMVar currentProc) $ \process ->
+                    whenNothingM_ (getProcessExitCode process) $ do
                         interruptProcessGroupOf process 
                             `catch` (\e -> print (e :: IOException))
-                        waitForProcess process -- cleans up the handle
-                        return ()
-                    _ -> return ()
+                        -- Clean up the handle
+                        waitForProcess process
                 putMVar currentProc =<< start cmd args
     forever $ threadDelay 1000000
+
+whenJustM_ :: Monad m => m (Maybe t) -> (t -> m a) -> m ()
+whenJustM_ actionA actionB = actionA >>= \case
+    Just x -> actionB x >> return ()
+    _      -> return ()
+
+whenNothingM_ :: Monad m => m (Maybe t) -> m a -> m ()
+whenNothingM_ actionA actionB = actionA >>= \case
+    Nothing -> actionB >> return ()
+    _       -> return ()
 
 -- We start the process in a group such that 
 -- interruptProcessGroupOf will also terminate any child processes
