@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, ScopedTypeVariables #-}
 import System.OSX.FSEvents
 import System.Environment
 import System.Process
@@ -7,6 +7,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Monad
 import Control.Exception
+import System.FilePath
 import Data.List (isInfixOf)
 
 main :: IO ()
@@ -17,11 +18,16 @@ main = do
         error $ unlines 
             [ "Usage: hard <command>." 
             , "Watches the current directory/subdirectories and re-runs the <command>."
-            , "Ignores files in your .gitignore" ]
+            , "Ignores files in your .gitignore" 
+            , "Create a .hard file with a newline-separated list of .extensions to only"
+            , "monitor files with those extensions" ]
 
     let (cmd:args) = allArgs
 
     ignorables <- (".git":) . lines <$> readFile ".gitignore"
+    extensions <- lines <$> readFile ".hard" `catch` (\(_e::IOException) -> return "")
+    when (null extensions) $ 
+        putStrLn "No .hard file found. Consider creating one to opt-in to only certain extensions."
 
     dir <- getCurrentDirectory
 
@@ -31,8 +37,10 @@ main = do
     currentProc <- newMVar =<< start cmd args
     eventStreamCreate [dir] 0.1 processImmediate ignoreSelfEvents fileLevel $ \event -> do
         let path = eventPath event
+            extension = takeExtension path
             ignorable = or (map (`isInfixOf` path) ignorables)
-        unless ignorable $ do
+            includable = or (map (== extension) extensions) || null extensions
+        when (not ignorable && includable) $ do
             whenJustM_ (tryTakeMVar currentProc) killProcess
             putMVar currentProc =<< start cmd args
     forever $ threadDelay 1000000

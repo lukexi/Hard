@@ -3,6 +3,14 @@ cabal install
 ```
 (with ~/.cabal/bin in your PATH)
 
+Optionally, add a ```.hard``` file to your directory with extensions like
+```
+.hs
+.frag
+.vert
+```
+to only rebuild your project when a file with one of those extensions changes.
+
 then use like:
 ```
 hard cabal run
