@@ -32,17 +32,17 @@ main = do
     eventStreamCreate [dir] 0.1 processImmediate ignoreSelfEvents fileLevel $ \event -> do
         let path = eventPath event
             ignorable = or (map (`isInfixOf` path) ignorables)
-        if ignorable 
-            then return () -- putStrLn $ "Ignoring event: " ++ show path
-            else do
-                whenJustM_ (tryTakeMVar currentProc) $ \process ->
-                    whenNothingM_ (getProcessExitCode process) $ do
-                        interruptProcessGroupOf process 
-                            `catch` (\e -> print (e :: IOException))
-                        -- Clean up the handle
-                        waitForProcess process
-                putMVar currentProc =<< start cmd args
+        unless ignorable $ do
+            whenJustM_ (tryTakeMVar currentProc) killProcess
+            putMVar currentProc =<< start cmd args
     forever $ threadDelay 1000000
+
+killProcess :: ProcessHandle -> IO ()
+killProcess process = whenNothingM_ (getProcessExitCode process) $ do
+    interruptProcessGroupOf process 
+        `catch` (\e -> print (e :: IOException))
+    -- Clean up the handle
+    waitForProcess process
 
 whenJustM_ :: Monad m => m (Maybe t) -> (t -> m a) -> m ()
 whenJustM_ actionA actionB = actionA >>= \case
